@@ -56,67 +56,17 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
   }
 
   Future<void> markAsRead(String id) async {
-    // Optimistic update
-    state = state.copyWith(
-      notifications: state.notifications.map((n) {
-        if (n.id == id && !n.isRead) {
-          return AppNotification(
-            id: n.id,
-            type: n.type,
-            message: n.message,
-            referenceType: n.referenceType,
-            referenceId: n.referenceId,
-            isRead: true,
-            createdAt: n.createdAt,
-          );
-        }
-        return n;
-      }).toList(),
-      unreadCount: state.unreadCount > 0 ? state.unreadCount - 1 : 0,
-    );
-
-    try {
-      await _service.markAsRead(id);
-    } catch (e) {
-      // Revert on failure by reloading
-      await loadNotifications();
-    }
+    await _service.markAsRead(id);
+    await loadNotifications();
   }
 
   Future<void> markAllAsRead() async {
-    // Optimistic update
-    state = state.copyWith(
-      notifications: state.notifications.map((n) {
-        if (!n.isRead) {
-          return AppNotification(
-            id: n.id,
-            type: n.type,
-            message: n.message,
-            referenceType: n.referenceType,
-            referenceId: n.referenceId,
-            isRead: true,
-            createdAt: n.createdAt,
-          );
-        }
-        return n;
-      }).toList(),
-      unreadCount: 0,
-    );
-
-    try {
-      await _service.markAllAsRead();
-    } catch (e) {
-      // Revert on failure by reloading
-      await loadNotifications();
-    }
+    await _service.markAllAsRead();
+    await loadNotifications();
   }
 
   Future<void> getUnreadCount() async {
-    try {
-      final count = await _service.getUnreadCount();
-      state = state.copyWith(unreadCount: count);
-    } catch (_) {
-      // Silently fail - unread count is non-critical
-    }
+    final count = await _service.getUnreadCount();
+    state = state.copyWith(unreadCount: count);
   }
 }

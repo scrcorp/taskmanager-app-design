@@ -1,30 +1,19 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'api_client.dart';
-import '../config/constants.dart';
 import '../utils/token_storage.dart';
-import 'mock_services.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) {
-  if (AppConstants.useMock) return MockAuthService();
-  return AuthService(ref.read(dioProvider));
+  return AuthService();
 });
 
+/// Pure mock auth service — no server communication
 class AuthService {
-  final Dio _dio;
-  AuthService(this._dio);
+  bool _isLoggedIn = false;
+
+  bool get isLoggedIn => _isLoggedIn;
 
   Future<void> login(String username, String password) async {
-    final companyCode = await TokenStorage.getCompanyCode();
-    final response = await _dio.post('/app/auth/login', data: {
-      'username': username,
-      'password': password,
-      if (companyCode != null) 'company_code': companyCode,
-    });
-    await TokenStorage.setTokens(
-      response.data['access_token'],
-      response.data['refresh_token'],
-    );
+    await Future.delayed(const Duration(milliseconds: 300));
+    _isLoggedIn = true;
   }
 
   Future<void> register({
@@ -33,36 +22,29 @@ class AuthService {
     required String fullName,
     String? email,
   }) async {
-    final companyCode = await TokenStorage.getCompanyCode();
-    final response = await _dio.post('/app/auth/register', data: {
-      'username': username,
-      'password': password,
-      'full_name': fullName,
-      if (email != null) 'email': email,
-      'company_code': companyCode ?? '',
-    });
-    await TokenStorage.setTokens(
-      response.data['access_token'],
-      response.data['refresh_token'],
-    );
+    await Future.delayed(const Duration(milliseconds: 300));
+    _isLoggedIn = true;
   }
 
   Future<Map<String, dynamic>> getMe() async {
-    final response = await _dio.get('/app/auth/me');
-    return response.data;
+    await Future.delayed(const Duration(milliseconds: 100));
+    return {
+      'id': 'mock-user-001',
+      'organization_id': 'mock-org-001',
+      'role_id': 'mock-role-001',
+      'username': 'demo_user',
+      'email': 'demo@example.com',
+      'first_name': 'Demo',
+      'last_name': 'User',
+      'is_active': true,
+      'role_name': 'Staff',
+      'role_level': 4,
+      'created_at': '2026-01-01T00:00:00Z',
+    };
   }
 
   Future<void> logout() async {
-    try {
-      final refreshToken = await TokenStorage.getRefreshToken();
-      if (refreshToken != null) {
-        await _dio.post('/app/auth/logout', data: {
-          'refresh_token': refreshToken,
-        });
-      }
-    } catch (_) {
-      // 서버 로그아웃 실패해도 로컬 토큰은 삭제 — Clear local tokens even if server call fails
-    }
+    _isLoggedIn = false;
     await TokenStorage.clearTokens();
   }
 }
