@@ -66,7 +66,27 @@ class AssignmentNotifier extends StateNotifier<AssignmentState> {
     bool isCompleted,
   ) async {
     await _service.toggleChecklistItem(assignmentId, itemIndex, isCompleted);
-    // Reload from mock data to get the updated state
+    await _reloadAssignment(assignmentId);
+  }
+
+  Future<void> completeChecklistItemWithVerification(
+    String assignmentId,
+    int itemIndex, {
+    String? photoUrl,
+    String? comment,
+    String? completedBy,
+  }) async {
+    await _service.completeChecklistItemWithVerification(
+      assignmentId,
+      itemIndex,
+      photoUrl: photoUrl,
+      comment: comment,
+      completedBy: completedBy,
+    );
+    await _reloadAssignment(assignmentId);
+  }
+
+  Future<void> _reloadAssignment(String assignmentId) async {
     final updated = await _service.getAssignment(assignmentId);
     final updatedList = state.assignments.map((a) {
       return a.id == assignmentId ? updated : a;

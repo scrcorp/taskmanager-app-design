@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const bg = Color(0xFFF5F6FA);
+  static const bg = Color(0xFFF5EDF0);
   static const white = Color(0xFFFFFFFF);
-  static const border = Color(0xFFE8EAF0);
-  static const accent = Color(0xFF6C5CE7);
-  static const accentLight = Color(0xFF7C6DF0);
-  static const accentBg = Color(0xFFF0EEFF);
+  static const border = Color(0xFFE8E0E3);
+  static const accent = Color(0xFF3B8DD9);
+  static const accentLight = Color(0xFF5CA5E8);
+  static const accentBg = Color(0xFFEBF3FD);
   static const success = Color(0xFF00B894);
   static const successBg = Color(0xFFE6F9F4);
   static const warning = Color(0xFFF39C12);
   static const warningBg = Color(0xFFFEF5E6);
   static const danger = Color(0xFFFF6B6B);
   static const dangerBg = Color(0xFFFFEEEE);
-  static const text = Color(0xFF1A1D2E);
+  static const text = Color(0xFF222222);
   static const textSecondary = Color(0xFF6B7280);
   static const textMuted = Color(0xFF9CA3AF);
   static const tabInactive = Color(0xFF9CA3AF);

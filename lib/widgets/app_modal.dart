@@ -82,7 +82,7 @@ class AppModal {
                           onPressed: () => Navigator.of(ctx).pop(true),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: config.iconColor,
-                            foregroundColor: AppColors.white,
+                            foregroundColor: config.buttonFgColor,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -100,7 +100,7 @@ class AppModal {
                       onPressed: () => Navigator.of(ctx).pop(true),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: config.iconColor,
-                        foregroundColor: AppColors.white,
+                        foregroundColor: config.buttonFgColor,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -124,24 +124,28 @@ class AppModal {
           icon: Icons.error_rounded,
           iconColor: AppColors.danger,
           bgColor: AppColors.dangerBg,
+          buttonFgColor: AppColors.white,
         );
       case ModalType.warning:
         return _ModalConfig(
           icon: Icons.warning_rounded,
           iconColor: AppColors.warning,
           bgColor: AppColors.warningBg,
+          buttonFgColor: AppColors.white,
         );
       case ModalType.confirm:
         return _ModalConfig(
           icon: Icons.help_rounded,
           iconColor: AppColors.accent,
           bgColor: AppColors.accentBg,
+          buttonFgColor: AppColors.white,
         );
       case ModalType.info:
         return _ModalConfig(
           icon: Icons.info_rounded,
           iconColor: AppColors.accent,
           bgColor: AppColors.accentBg,
+          buttonFgColor: AppColors.white,
         );
     }
   }
@@ -151,10 +155,12 @@ class _ModalConfig {
   final IconData icon;
   final Color iconColor;
   final Color bgColor;
+  final Color buttonFgColor;
 
   const _ModalConfig({
     required this.icon,
     required this.iconColor,
     required this.bgColor,
+    required this.buttonFgColor,
   });
 }

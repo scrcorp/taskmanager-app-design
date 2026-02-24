@@ -1,8 +1,13 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../config/theme.dart';
+import '../../models/checklist.dart';
 import '../../models/task.dart';
 import '../../models/user.dart';
 import '../../providers/auth_provider.dart';
@@ -68,102 +73,97 @@ class _WorkScreenState extends ConsumerState<WorkScreen> {
           _ProfileCard(user: user, tags: tags.toList()),
           const SizedBox(height: 20),
 
-          // ── Daily Checklist (horizontal scroll) ───────────────────────────
+          // ── Checklist banner ────────────────────────────────────────────
           if (assignments.isLoading)
             const SizedBox(
               height: 72,
               child: Center(child: CircularProgressIndicator()),
             )
           else if (assignments.assignments.isNotEmpty) ...[
-            const _SectionLabel(text: 'Daily Checklist'),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 72,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: assignments.assignments.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 10),
-                itemBuilder: (context, i) {
-                  final a = assignments.assignments[i];
-                  final total = a.checklistSnapshot?.totalItems ?? 0;
-                  final completed = a.checklistSnapshot?.completedItems ?? 0;
-                  final isDone = total > 0 && completed == total;
+            Builder(builder: (context) {
+              final a = assignments.assignments.first;
+              final total = a.checklistSnapshot?.totalItems ?? 0;
+              final completed = a.checklistSnapshot?.completedItems ?? 0;
+              final isDone = total > 0 && completed == total;
 
-                  return GestureDetector(
-                    onTap: () => _openChecklist(context, a.id),
-                    child: Container(
-                      width: 220,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isDone ? AppColors.successBg : AppColors.accentBg,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isDone
-                                ? Icons.check_box
-                                : Icons.check_box_outline_blank,
-                            color: isDone ? AppColors.success : AppColors.accent,
-                            size: 22,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'Daily Checklist ($completed/$total)',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: isDone
-                                        ? AppColors.success
-                                        : AppColors.accent,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  a.store.name,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isDone
-                                        ? AppColors.success
-                                        : AppColors.accent,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(
-                            isDone
-                                ? Icons.radio_button_checked
-                                : Icons.arrow_forward_ios,
-                            size: isDone ? 18 : 14,
-                            color: isDone ? AppColors.success : AppColors.accent,
-                          ),
-                        ],
-                      ),
+              return GestureDetector(
+                onTap: () => _openChecklist(context, a.id),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: isDone
+                          ? [const Color(0xFF00B894), const Color(0xFF00CEC9)]
+                          : [const Color(0xFF6C5CE7), const Color(0xFF74B9FF)],
                     ),
-                  );
-                },
-              ),
-            ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isDone ? 'Checklist Complete!' : 'Checklist',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white70,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              isDone
+                                  ? '오늘 할 일을 모두 완료했어요'
+                                  : '$completed/$total 완료 · ${a.store.name}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          isDone ? Icons.check_circle : Icons.checklist_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
             const SizedBox(height: 24),
           ],
 
-          // ── 남은 업무 ────────────────────────────────────────────────────
+          // ── Section divider ────────────────────────────────────────────
+          Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            height: 1,
+            color: AppColors.border,
+          ),
+
+          // ── Task ──────────────────────────────────────────────────────
           if (!tasks.isLoading && totalTasks > 0) ...[
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _SectionLabel(text: '남은 업무($remainingTasks/$totalTasks)'),
+                _SectionLabel(text: 'Task($remainingTasks/$totalTasks)'),
                 Text(
                   '$doneTasks done',
                   style: const TextStyle(
@@ -213,8 +213,8 @@ class _WorkScreenState extends ConsumerState<WorkScreen> {
             const SizedBox(height: 20),
           ],
 
-          // ── 업무목록 ─────────────────────────────────────────────────────
-          const _SectionLabel(text: '업무목록'),
+          // ── Task List ──────────────────────────────────────────────────
+          const _SectionLabel(text: 'Task List'),
           const SizedBox(height: 10),
           if (tasks.isLoading)
             const Center(
@@ -309,16 +309,41 @@ class _ProfileCard extends StatelessWidget {
                   ],
                 ),
               ),
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: AppColors.accentBg,
-                child: Text(
-                  user?.initials ?? 'ST',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.accent,
-                  ),
+              GestureDetector(
+                onTap: () => context.push('/my'),
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: AppColors.accentBg,
+                      child: Text(
+                        user?.initials ?? 'ST',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.border, width: 1.5),
+                        ),
+                        child: const Icon(
+                          Icons.edit,
+                          size: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -508,6 +533,7 @@ class _ChecklistBottomSheet extends ConsumerStatefulWidget {
 class _ChecklistBottomSheetState
     extends ConsumerState<_ChecklistBottomSheet> {
   bool _celebrationShown = false;
+  Timer? _autoCloseTimer;
 
   @override
   void initState() {
@@ -517,6 +543,47 @@ class _ChecklistBottomSheetState
           .read(assignmentProvider.notifier)
           .loadAssignment(widget.assignmentId),
     );
+  }
+
+  @override
+  void dispose() {
+    _autoCloseTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startAutoCloseTimer() {
+    _autoCloseTimer?.cancel();
+    _autoCloseTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    });
+  }
+
+  void _onItemTap(ChecklistItem item) {
+    if (item.isCompleted) return;
+
+    if (item.requiresVerification) {
+      // Open verification detail bottom sheet
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _VerificationBottomSheet(
+          assignmentId: widget.assignmentId,
+          item: item,
+        ),
+      );
+    } else {
+      // Simple toggle
+      ref
+          .read(assignmentProvider.notifier)
+          .toggleChecklistItem(
+            widget.assignmentId,
+            item.index,
+            !item.isCompleted,
+          );
+    }
   }
 
   @override
@@ -536,6 +603,7 @@ class _ChecklistBottomSheetState
               duration: Duration(seconds: 2),
             ),
           );
+          _startAutoCloseTimer();
         }
       });
     }
@@ -544,6 +612,7 @@ class _ChecklistBottomSheetState
     final total = snapshot?.totalItems ?? 0;
     final completed = snapshot?.completedItems ?? 0;
     final progress = total > 0 ? completed / total : 0.0;
+    final isAllDone = total > 0 && completed == total;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.65,
@@ -577,7 +646,7 @@ class _ChecklistBottomSheetState
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Daily Checklist',
+                      'Checklist',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -639,44 +708,52 @@ class _ChecklistBottomSheetState
                             itemBuilder: (context, index) {
                               final item = snapshot.items[index];
                               return _ChecklistItemTile(
-                                title: item.title,
-                                description: item.description,
-                                isCompleted: item.isCompleted,
-                                completedAtDisplay: item.completedAtDisplay,
-                                onToggle: () {
-                                  ref
-                                      .read(assignmentProvider.notifier)
-                                      .toggleChecklistItem(
-                                        widget.assignmentId,
-                                        item.index,
-                                        !item.isCompleted,
-                                      );
-                                },
+                                item: item,
+                                onTap: () => _onItemTap(item),
                               );
                             },
                           ),
               ),
 
-              // Close button
+              // Close / Done button
               SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                   child: SizedBox(
                     width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.border),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'close',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ),
+                    child: isAllDone
+                        ? ElevatedButton(
+                            onPressed: () {
+                              _autoCloseTimer?.cancel();
+                              Navigator.pop(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'DONE',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          )
+                        : OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.border),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'close',
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                          ),
                   ),
                 ),
               ),
@@ -691,78 +768,74 @@ class _ChecklistBottomSheetState
 // ─── Checklist item tile ──────────────────────────────────────────────────────
 
 class _ChecklistItemTile extends StatelessWidget {
-  final String title;
-  final String? description;
-  final bool isCompleted;
-  final String? completedAtDisplay;
-  final VoidCallback onToggle;
+  final ChecklistItem item;
+  final VoidCallback onTap;
 
   const _ChecklistItemTile({
-    required this.title,
-    this.description,
-    required this.isCompleted,
-    this.completedAtDisplay,
-    required this.onToggle,
+    required this.item,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onToggle,
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Checkbox
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Container(
                 width: 22,
                 height: 22,
                 decoration: BoxDecoration(
-                  color: isCompleted ? AppColors.success : Colors.transparent,
+                  color: item.isCompleted ? AppColors.success : Colors.transparent,
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color:
-                        isCompleted ? AppColors.success : AppColors.border,
+                    color: item.isCompleted ? AppColors.success : AppColors.border,
                     width: 2,
                   ),
                 ),
-                child: isCompleted
+                child: item.isCompleted
                     ? const Icon(Icons.check, size: 14, color: Colors.white)
                     : null,
               ),
             ),
             const SizedBox(width: 12),
+
+            // Content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    item.title,
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: isCompleted ? AppColors.textMuted : AppColors.text,
-                      decoration: isCompleted
+                      color: item.isCompleted ? AppColors.textMuted : AppColors.text,
+                      decoration: item.isCompleted
                           ? TextDecoration.lineThrough
                           : TextDecoration.none,
                     ),
                   ),
-                  if (description != null && description!.isNotEmpty) ...[
+                  if (item.description != null && item.description!.isNotEmpty) ...[
                     const SizedBox(height: 3),
                     Text(
-                      description!,
+                      item.description!,
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.textMuted,
                       ),
                     ),
                   ],
-                  if (isCompleted && completedAtDisplay != null) ...[
+                  if (item.isCompleted && item.completedAtDisplay != null) ...[
                     const SizedBox(height: 3),
                     Text(
-                      '완료 $completedAtDisplay',
+                      '완료 ${item.completedAtDisplay}${item.completedBy != null ? ' · ${item.completedBy}' : ''}',
                       style: const TextStyle(
                         fontSize: 11,
                         color: AppColors.success,
@@ -772,9 +845,484 @@ class _ChecklistItemTile extends StatelessWidget {
                 ],
               ),
             ),
+
+            // Verification type icons
+            if (item.requiresVerification && !item.isCompleted) ...[
+              const SizedBox(width: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (item.requiresPhoto)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Icon(
+                        Icons.camera_alt_outlined,
+                        size: 16,
+                        color: AppColors.accent.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  if (item.requiresComment)
+                    Icon(
+                      Icons.edit_note,
+                      size: 18,
+                      color: AppColors.accent.withValues(alpha: 0.7),
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─── Verification bottom sheet ──────────────────────────────────────────────
+
+class _VerificationBottomSheet extends ConsumerStatefulWidget {
+  final String assignmentId;
+  final ChecklistItem item;
+
+  const _VerificationBottomSheet({
+    required this.assignmentId,
+    required this.item,
+  });
+
+  @override
+  ConsumerState<_VerificationBottomSheet> createState() =>
+      _VerificationBottomSheetState();
+}
+
+class _VerificationBottomSheetState
+    extends ConsumerState<_VerificationBottomSheet> {
+  final _commentController = TextEditingController();
+  Uint8List? _pickedImageBytes;
+  String? _pickedImageName;
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  bool get _canSubmit {
+    if (_isSubmitting) return false;
+    if (widget.item.requiresPhoto && _pickedImageBytes == null) return false;
+    if (widget.item.requiresComment && _commentController.text.trim().isEmpty) {
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 80,
+    );
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _pickedImageBytes = bytes;
+        _pickedImageName = picked.name;
+      });
+    }
+  }
+
+  Future<void> _takePhoto() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 80,
+    );
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _pickedImageBytes = bytes;
+        _pickedImageName = picked.name;
+      });
+    }
+  }
+
+  Future<void> _submit() async {
+    if (!_canSubmit) return;
+    setState(() => _isSubmitting = true);
+
+    final user = ref.read(authProvider).user;
+
+    await ref.read(assignmentProvider.notifier).completeChecklistItemWithVerification(
+      widget.assignmentId,
+      widget.item.index,
+      photoUrl: _pickedImageName,
+      comment: _commentController.text.trim().isNotEmpty
+          ? _commentController.text.trim()
+          : null,
+      completedBy: user?.fullName,
+    );
+
+    if (mounted) {
+      Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      maxChildSize: 0.92,
+      minChildSize: 0.5,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Handle
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+
+              // Header
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Checklist',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.text,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              const Divider(height: 1, color: AppColors.border),
+
+              // Scrollable content
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    // Task info
+                    Text(
+                      widget.item.title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    if (widget.item.description != null &&
+                        widget.item.description!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        widget.item.description!,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+
+                    // Photo verification section
+                    if (widget.item.requiresPhoto) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.bg,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Text(
+                                  '인증',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.text,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Icon(
+                                  Icons.camera_alt_outlined,
+                                  size: 16,
+                                  color: AppColors.textMuted,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              '작업 완료 인증을 해주세요.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Image preview or placeholder
+                            if (_pickedImageBytes != null)
+                              Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.memory(
+                                      _pickedImageBytes!,
+                                      width: double.infinity,
+                                      height: 200,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: GestureDetector(
+                                      onTap: () => setState(() {
+                                        _pickedImageBytes = null;
+                                        _pickedImageName = null;
+                                      }),
+                                      child: Container(
+                                        width: 28,
+                                        height: 28,
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(alpha: 0.5),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.close,
+                                          size: 16,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else
+                              GestureDetector(
+                                onTap: _pickImage,
+                                child: Container(
+                                  width: double.infinity,
+                                  height: 200,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: AppColors.border,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.add_photo_alternate_outlined,
+                                        size: 40,
+                                        color: AppColors.textMuted,
+                                      ),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        '사진을 추가해주세요',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: AppColors.textMuted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                            const SizedBox(height: 12),
+
+                            // Camera / Gallery buttons
+                            if (_pickedImageBytes == null)
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: _takePhoto,
+                                      icon: const Icon(Icons.camera_alt, size: 16),
+                                      label: const Text('촬영'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.accent,
+                                        side: const BorderSide(color: AppColors.accent),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(vertical: 10),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: _pickImage,
+                                      icon: const Icon(Icons.photo_library, size: 16),
+                                      label: const Text('갤러리'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.textSecondary,
+                                        side: const BorderSide(color: AppColors.border),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(vertical: 10),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Comment section
+                    if (widget.item.requiresComment) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.bg,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Text(
+                                  '코멘트',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.text,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Icon(
+                                  Icons.edit_note,
+                                  size: 18,
+                                  color: AppColors.textMuted,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              '작업 내용을 기록해주세요.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _commentController,
+                              maxLines: 4,
+                              onChanged: (_) => setState(() {}),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.text,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: '코멘트를 입력하세요...',
+                                hintStyle: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textMuted,
+                                ),
+                                filled: true,
+                                fillColor: AppColors.white,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.border),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.border),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.accent),
+                                ),
+                                contentPadding: const EdgeInsets.all(14),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ],
+                ),
+              ),
+
+              // DONE button
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _canSubmit ? _submit : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: AppColors.border,
+                        disabledForegroundColor: AppColors.textMuted,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'DONE',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

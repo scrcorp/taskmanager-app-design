@@ -47,11 +47,14 @@ class ChecklistItem {
   final String? templateItemId;
   final String title;
   final String? description;
-  final String verificationType;
+  final String verificationType; // 'none', 'photo', 'comment', 'photo_comment'
   final int sortOrder;
   final bool isCompleted;
   final String? completedAt;
   final String? completedTz;
+  final String? photoUrl;
+  final String? comment;
+  final String? completedBy;
 
   const ChecklistItem({
     required this.index,
@@ -63,7 +66,16 @@ class ChecklistItem {
     this.isCompleted = false,
     this.completedAt,
     this.completedTz,
+    this.photoUrl,
+    this.comment,
+    this.completedBy,
   });
+
+  bool get requiresPhoto =>
+      verificationType == 'photo' || verificationType == 'photo_comment';
+  bool get requiresComment =>
+      verificationType == 'comment' || verificationType == 'photo_comment';
+  bool get requiresVerification => verificationType != 'none';
 
   /// Formatted completion time string (e.g. "02/20 14:05 PST")
   String? get completedAtDisplay {
@@ -81,6 +93,30 @@ class ChecklistItem {
     return completedTz != null ? '$completedAt $completedTz' : completedAt;
   }
 
+  ChecklistItem copyWith({
+    bool? isCompleted,
+    String? completedAt,
+    String? completedTz,
+    String? photoUrl,
+    String? comment,
+    String? completedBy,
+  }) {
+    return ChecklistItem(
+      index: index,
+      templateItemId: templateItemId,
+      title: title,
+      description: description,
+      verificationType: verificationType,
+      sortOrder: sortOrder,
+      isCompleted: isCompleted ?? this.isCompleted,
+      completedAt: completedAt ?? this.completedAt,
+      completedTz: completedTz ?? this.completedTz,
+      photoUrl: photoUrl ?? this.photoUrl,
+      comment: comment ?? this.comment,
+      completedBy: completedBy ?? this.completedBy,
+    );
+  }
+
   factory ChecklistItem.fromJson(Map<String, dynamic> json, int index) {
     return ChecklistItem(
       index: index,
@@ -92,6 +128,9 @@ class ChecklistItem {
       isCompleted: json['is_completed'] ?? false,
       completedAt: json['completed_at'],
       completedTz: json['completed_tz'],
+      photoUrl: json['photo_url'],
+      comment: json['comment'],
+      completedBy: json['completed_by'],
     );
   }
 }

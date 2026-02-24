@@ -25,6 +25,35 @@ class AssignmentService {
 
   Future<void> toggleChecklistItem(String assignmentId, int itemIndex, bool isCompleted) async {
     await Future.delayed(const Duration(milliseconds: 100));
+    _updateChecklistItem(assignmentId, itemIndex, isCompleted: isCompleted);
+  }
+
+  Future<void> completeChecklistItemWithVerification(
+    String assignmentId,
+    int itemIndex, {
+    String? photoUrl,
+    String? comment,
+    String? completedBy,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    _updateChecklistItem(
+      assignmentId,
+      itemIndex,
+      isCompleted: true,
+      photoUrl: photoUrl,
+      comment: comment,
+      completedBy: completedBy,
+    );
+  }
+
+  void _updateChecklistItem(
+    String assignmentId,
+    int itemIndex, {
+    required bool isCompleted,
+    String? photoUrl,
+    String? comment,
+    String? completedBy,
+  }) {
     final idx = mockAssignments.indexWhere((a) => a.id == assignmentId);
     if (idx == -1) return;
     final current = mockAssignments[idx];
@@ -32,16 +61,13 @@ class AssignmentService {
 
     final updatedItems = current.checklistSnapshot!.items.map((item) {
       if (item.index == itemIndex) {
-        return ChecklistItem(
-          index: item.index,
-          templateItemId: item.templateItemId,
-          title: item.title,
-          description: item.description,
-          verificationType: item.verificationType,
-          sortOrder: item.sortOrder,
+        return item.copyWith(
           isCompleted: isCompleted,
           completedAt: isCompleted ? _formatNow() : null,
           completedTz: isCompleted ? DateTime.now().timeZoneName : null,
+          photoUrl: photoUrl,
+          comment: comment,
+          completedBy: completedBy,
         );
       }
       return item;
@@ -91,11 +117,11 @@ final mockAssignments = <Assignment>[
       templateId: 'tmpl-001',
       templateName: 'Barista Opening Checklist',
       items: const [
-        ChecklistItem(index: 0, title: 'Check espresso machine pressure', description: 'Ensure pressure gauge reads 9 bar', verificationType: 'none', isCompleted: true, sortOrder: 0),
-        ChecklistItem(index: 1, title: 'Prepare milk station', description: 'Fill milk pitchers, check dairy expiry dates', verificationType: 'none', isCompleted: true, sortOrder: 1),
+        ChecklistItem(index: 0, title: 'Check espresso machine pressure', description: 'Ensure pressure gauge reads 9 bar', verificationType: 'none', isCompleted: true, completedAt: '2026-02-24T09:15', completedTz: '한국 표준시', completedBy: 'park sung min', sortOrder: 0),
+        ChecklistItem(index: 1, title: 'Prepare milk station', description: 'Fill milk pitchers, check dairy expiry dates', verificationType: 'comment', isCompleted: true, completedAt: '2026-02-24T09:20', completedTz: '한국 표준시', completedBy: 'park sung min', comment: 'All pitchers filled, expiry OK', sortOrder: 1),
         ChecklistItem(index: 2, title: 'Stock cups and lids', description: 'Ensure at least 50 of each size', verificationType: 'none', isCompleted: false, sortOrder: 2),
         ChecklistItem(index: 3, title: 'Clean counter area', description: 'Wipe all surfaces, sanitize equipment', verificationType: 'photo', isCompleted: false, sortOrder: 3),
-        ChecklistItem(index: 4, title: 'Set display pastries', description: 'Arrange fresh pastries in display case', verificationType: 'photo', isCompleted: false, sortOrder: 4),
+        ChecklistItem(index: 4, title: 'Set display pastries', description: 'Arrange fresh pastries in display case', verificationType: 'photo_comment', isCompleted: false, sortOrder: 4),
         ChecklistItem(index: 5, title: 'Turn on signage & music', verificationType: 'none', isCompleted: false, sortOrder: 5),
       ],
     ),
@@ -112,9 +138,9 @@ final mockAssignments = <Assignment>[
       templateName: 'Server Evening Setup',
       items: const [
         ChecklistItem(index: 0, title: 'Set all tables (cutlery & napkins)', verificationType: 'none', isCompleted: false, sortOrder: 0),
-        ChecklistItem(index: 1, title: 'Check reservation list', verificationType: 'none', isCompleted: false, sortOrder: 1),
+        ChecklistItem(index: 1, title: 'Check reservation list', verificationType: 'comment', isCompleted: false, sortOrder: 1),
         ChecklistItem(index: 2, title: 'Refill condiment stations', verificationType: 'none', isCompleted: false, sortOrder: 2),
-        ChecklistItem(index: 3, title: 'Verify POS system is online', verificationType: 'none', isCompleted: false, sortOrder: 3),
+        ChecklistItem(index: 3, title: 'Verify POS system is online', verificationType: 'photo', isCompleted: false, sortOrder: 3),
       ],
     ),
   ),
@@ -129,10 +155,10 @@ final mockAssignments = <Assignment>[
       templateId: 'tmpl-001',
       templateName: 'Barista Opening Checklist',
       items: const [
-        ChecklistItem(index: 0, title: 'Check espresso machine pressure', verificationType: 'none', isCompleted: true, sortOrder: 0),
-        ChecklistItem(index: 1, title: 'Prepare milk station', verificationType: 'none', isCompleted: true, sortOrder: 1),
-        ChecklistItem(index: 2, title: 'Stock cups and lids', verificationType: 'none', isCompleted: true, sortOrder: 2),
-        ChecklistItem(index: 3, title: 'Clean counter area', verificationType: 'photo', isCompleted: true, sortOrder: 3),
+        ChecklistItem(index: 0, title: 'Check espresso machine pressure', verificationType: 'none', isCompleted: true, completedAt: '2026-02-23T09:10', completedTz: '한국 표준시', completedBy: 'park sung min', sortOrder: 0),
+        ChecklistItem(index: 1, title: 'Prepare milk station', verificationType: 'none', isCompleted: true, completedAt: '2026-02-23T09:15', completedTz: '한국 표준시', completedBy: 'park sung min', sortOrder: 1),
+        ChecklistItem(index: 2, title: 'Stock cups and lids', verificationType: 'none', isCompleted: true, completedAt: '2026-02-23T09:20', completedTz: '한국 표준시', completedBy: 'park sung min', sortOrder: 2),
+        ChecklistItem(index: 3, title: 'Clean counter area', verificationType: 'photo', isCompleted: true, completedAt: '2026-02-23T09:25', completedTz: '한국 표준시', completedBy: 'park sung min', sortOrder: 3),
       ],
     ),
   ),
@@ -149,7 +175,7 @@ final mockAssignments = <Assignment>[
       items: const [
         ChecklistItem(index: 0, title: 'Preheat all ovens', verificationType: 'none', isCompleted: false, sortOrder: 0),
         ChecklistItem(index: 1, title: 'Check dough proofing status', verificationType: 'photo', isCompleted: false, sortOrder: 1),
-        ChecklistItem(index: 2, title: 'Inventory baking supplies', verificationType: 'none', isCompleted: false, sortOrder: 2),
+        ChecklistItem(index: 2, title: 'Inventory baking supplies', verificationType: 'comment', isCompleted: false, sortOrder: 2),
       ],
     ),
   ),
@@ -164,11 +190,11 @@ final mockAssignments = <Assignment>[
       templateId: 'tmpl-004',
       templateName: 'Floor Manager Opening',
       items: const [
-        ChecklistItem(index: 0, title: 'Review staff schedule', verificationType: 'none', isCompleted: true, sortOrder: 0),
-        ChecklistItem(index: 1, title: 'Check all stations staffed', verificationType: 'none', isCompleted: true, sortOrder: 1),
-        ChecklistItem(index: 2, title: 'Inspect dining area cleanliness', verificationType: 'photo', isCompleted: true, sortOrder: 2),
-        ChecklistItem(index: 3, title: 'Brief staff on daily specials', verificationType: 'none', isCompleted: true, sortOrder: 3),
-        ChecklistItem(index: 4, title: 'Unlock front door at opening time', verificationType: 'none', isCompleted: true, sortOrder: 4),
+        ChecklistItem(index: 0, title: 'Review staff schedule', verificationType: 'none', isCompleted: true, completedAt: '2026-02-22T08:50', completedTz: '한국 표준시', completedBy: 'kim ji yeon', sortOrder: 0),
+        ChecklistItem(index: 1, title: 'Check all stations staffed', verificationType: 'none', isCompleted: true, completedAt: '2026-02-22T08:55', completedTz: '한국 표준시', completedBy: 'kim ji yeon', sortOrder: 1),
+        ChecklistItem(index: 2, title: 'Inspect dining area cleanliness', verificationType: 'photo', isCompleted: true, completedAt: '2026-02-22T09:00', completedTz: '한국 표준시', completedBy: 'kim ji yeon', sortOrder: 2),
+        ChecklistItem(index: 3, title: 'Brief staff on daily specials', verificationType: 'none', isCompleted: true, completedAt: '2026-02-22T09:05', completedTz: '한국 표준시', completedBy: 'kim ji yeon', sortOrder: 3),
+        ChecklistItem(index: 4, title: 'Unlock front door at opening time', verificationType: 'none', isCompleted: true, completedAt: '2026-02-22T09:10', completedTz: '한국 표준시', completedBy: 'kim ji yeon', sortOrder: 4),
       ],
     ),
   ),

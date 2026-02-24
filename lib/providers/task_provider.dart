@@ -63,16 +63,27 @@ class TaskNotifier extends StateNotifier<TaskState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _service.completeTask(id);
-      // Reload the task to get updated status from server
-      final updated = await _service.getTask(id);
-      state = state.copyWith(
-        selected: updated,
-        // Also update the task in the list if present
-        tasks: state.tasks.map((t) => t.id == id ? updated : t).toList(),
-        isLoading: false,
-      );
+      await _reloadTask(id);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
+  }
+
+  Future<void> addComment(String taskId, {required String text, String? imageUrl}) async {
+    try {
+      await _service.addComment(taskId, text: text, imageUrl: imageUrl);
+      await _reloadTask(taskId);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> _reloadTask(String id) async {
+    final updated = await _service.getTask(id);
+    state = state.copyWith(
+      selected: updated,
+      tasks: state.tasks.map((t) => t.id == id ? updated : t).toList(),
+      isLoading: false,
+    );
   }
 }

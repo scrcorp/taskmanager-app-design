@@ -28,7 +28,7 @@ class _AppHeaderState extends ConsumerState<AppHeader> {
     final location = GoRouterState.of(context).uri.path;
     switch (location) {
       case '/home': return 'Home';
-      case '/work': return 'Checklist';
+      case '/work': return 'mytask';
       case '/tasks': return 'Tasks';
       case '/notices': return 'Notices';
       default: return widget.title ?? 'TaskManager';
