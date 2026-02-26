@@ -15,6 +15,7 @@ import '../screens/notices/notice_list_screen.dart';
 import '../screens/notices/notice_detail_screen.dart';
 import '../screens/my/my_page_screen.dart';
 import '../screens/notifications/notification_screen.dart';
+import '../screens/schedule/schedule_screen.dart';
 import '../widgets/app_shell.dart';
 
 /// auth 상태 변경을 GoRouter에 알려주는 Listenable
@@ -52,7 +53,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/tasks', builder: (_, __) => const TaskListScreen()),
           GoRoute(path: '/notices', builder: (_, __) => const NoticeListScreen()),
           GoRoute(path: '/clock', builder: (_, __) => const _PlaceholderScreen(title: 'Clock In Out', icon: Icons.access_time_outlined)),
-          GoRoute(path: '/schedule', builder: (_, __) => const _PlaceholderScreen(title: 'Schedule', icon: Icons.calendar_today_outlined)),
+          GoRoute(path: '/schedule', builder: (_, __) => const ScheduleScreen()),
         ],
       ),
       GoRoute(path: '/work/:id', builder: (_, state) => ChecklistScreen(id: state.pathParameters['id']!)),

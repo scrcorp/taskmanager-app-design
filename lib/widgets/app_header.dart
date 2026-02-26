@@ -31,6 +31,7 @@ class _AppHeaderState extends ConsumerState<AppHeader> {
       case '/work': return 'mytask';
       case '/tasks': return 'Tasks';
       case '/notices': return 'Notices';
+      case '/schedule': return 'Schedule';
       default: return widget.title ?? 'TaskManager';
     }
   }
