@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../config/theme.dart';
+import '../../models/announcement.dart';
 import '../../models/task.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/assignment_provider.dart';
@@ -230,12 +231,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: _QuickActionCard(
                     icon: Icons.school_rounded,
                     label: 'OJT',
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Coming soon'),
-                        duration: Duration(seconds: 1),
-                      ),
-                    ),
+                    onTap: () => context.go('/ojt'),
                   ),
                 ),
               ],
@@ -343,15 +339,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           const SizedBox(height: 32),
 
-          // ── Featured content banner ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: const _FeaturedBanner(
-              title: 'Better Workplace,\nBetter Life.',
-              subtitle: 'Tips for a productive day',
-              ctaText: 'Read more',
+          // ── Important notice banner ──
+          if (announcements.announcements.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: _ImportantNoticeBanner(
+                announcement: announcements.announcements.first,
+                onTap: () => context.push(
+                    '/notices/${announcements.announcements.first.id}'),
+              ),
             ),
-          ),
           const SizedBox(height: 32),
         ],
       ),
@@ -489,92 +486,124 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
-// ─── Featured content banner ────────────────────────────────────────────────
+// ─── Important notice banner ────────────────────────────────────────────────
 
-class _FeaturedBanner extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String ctaText;
+class _ImportantNoticeBanner extends StatelessWidget {
+  final Announcement announcement;
+  final VoidCallback onTap;
 
-  const _FeaturedBanner({
-    required this.title,
-    required this.subtitle,
-    required this.ctaText,
+  const _ImportantNoticeBanner({
+    required this.announcement,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(28),
-      constraints: const BoxConstraints(minHeight: 320),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1A1A2E),
-            Color(0xFF16213E),
-            Color(0xFF0F3460),
-          ],
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              'FEATURED',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Colors.white70,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-              height: 1.3,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Text(
-                ctaText,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(Icons.arrow_forward, size: 16, color: Colors.white),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF1A1A2E),
+              Color(0xFF16213E),
+              Color(0xFF0F3460),
             ],
           ),
-        ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF6B6B).withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.campaign_rounded, size: 13, color: Color(0xFFFF9B9B)),
+                      SizedBox(width: 4),
+                      Text(
+                        'IMPORTANT NOTICE',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFFF9B9B),
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                if (announcement.createdAt != null)
+                  Text(
+                    DateFormat('MM/dd').format(announcement.createdAt!),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.5),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              announcement.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                height: 1.3,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              announcement.content,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.white.withValues(alpha: 0.6),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'View details',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 6),
+                  Icon(Icons.arrow_forward_rounded, size: 15, color: Colors.white),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -59,4 +59,42 @@ class AnnouncementNotifier extends StateNotifier<AnnouncementState> {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
+
+  Future<void> addComment(String announcementId, {required String text}) async {
+    final selected = state.selected;
+    if (selected == null || selected.id != announcementId) return;
+
+    // Optimistic update
+    final optimistic = NoticeComment(
+      id: 'temp-${DateTime.now().millisecondsSinceEpoch}',
+      userId: 'user-current',
+      userName: 'Me',
+      text: text,
+      createdAt: DateTime.now(),
+    );
+    state = state.copyWith(
+      selected: selected.copyWith(
+        comments: [...selected.comments, optimistic],
+      ),
+    );
+
+    try {
+      await _service.addComment(announcementId, text);
+    } catch (_) {
+      // Revert on error
+      state = state.copyWith(selected: selected);
+    }
+  }
+
+  Future<void> toggleAcknowledge(String announcementId) async {
+    final selected = state.selected;
+    if (selected == null || selected.id != announcementId) return;
+
+    try {
+      final updated = await _service.toggleAcknowledge(announcementId);
+      state = state.copyWith(selected: updated);
+    } catch (_) {
+      // Keep current state on error
+    }
+  }
 }

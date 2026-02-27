@@ -225,6 +225,16 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     return _payPeriodRecords.fold(0.0, (sum, r) => sum + r.hoursWorked);
   }
 
+  double get _payPeriodOvertimeHours {
+    // 하루 8시간 초과분을 오버타임으로 계산
+    final dailyHours = <String, double>{};
+    for (final r in _payPeriodRecords) {
+      final key = _dateKey(r.date);
+      dailyHours[key] = (dailyHours[key] ?? 0) + r.hoursWorked;
+    }
+    return dailyHours.values.fold(0.0, (sum, h) => sum + (h > 8 ? h - 8 : 0));
+  }
+
   void _onPayPeriodChanged(int delta) {
     setState(() {
       _historyPayPeriodStart = _historyPayPeriodStart.add(Duration(days: delta));
@@ -323,6 +333,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
               dayRecords: _recordsForDay(_historySelectedDay),
               payPeriodWorkDays: _payPeriodWorkDays,
               payPeriodWorkHours: _payPeriodWorkHours,
+              payPeriodOvertimeHours: _payPeriodOvertimeHours,
               onPrevPayPeriod: () => _onPayPeriodChanged(-14),
               onNextPayPeriod: () => _onPayPeriodChanged(14),
               onMonthChanged: _onHistoryMonthChanged,
@@ -570,6 +581,7 @@ class _WorkHistoryView extends StatelessWidget {
   final List<_WorkRecord> dayRecords;
   final int payPeriodWorkDays;
   final double payPeriodWorkHours;
+  final double payPeriodOvertimeHours;
   final VoidCallback onPrevPayPeriod;
   final VoidCallback onNextPayPeriod;
   final ValueChanged<int> onMonthChanged;
@@ -583,20 +595,26 @@ class _WorkHistoryView extends StatelessWidget {
     required this.dayRecords,
     required this.payPeriodWorkDays,
     required this.payPeriodWorkHours,
+    required this.payPeriodOvertimeHours,
     required this.onPrevPayPeriod,
     required this.onNextPayPeriod,
     required this.onMonthChanged,
     required this.onDaySelected,
   });
 
+  static const _weekdayFull = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
+
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final dayLabel = '${selectedDay.month}월 ${selectedDay.day}일 ${_weekdayFull[selectedDay.weekday - 1]}';
+
+    return ListView(
       children: [
         _PayPeriodStatsCard(
           payPeriodStart: payPeriodStart,
           workDays: payPeriodWorkDays,
           workHours: payPeriodWorkHours,
+          overtimeHours: payPeriodOvertimeHours,
           onPrev: onPrevPayPeriod,
           onNext: onNextPayPeriod,
         ),
@@ -607,12 +625,36 @@ class _WorkHistoryView extends StatelessWidget {
           onMonthChanged: onMonthChanged,
           onDaySelected: onDaySelected,
         ),
-        Expanded(
-          child: _DayWorkRecordList(
-            selectedDay: selectedDay,
-            records: dayRecords,
+        // Day header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          child: Row(
+            children: [
+              Text(dayLabel, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text)),
+              const SizedBox(width: 8),
+              Text('${dayRecords.length}건', style: const TextStyle(fontSize: 14, color: AppColors.textMuted)),
+            ],
           ),
         ),
+        // Day records or empty state
+        if (dayRecords.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Column(
+              children: [
+                Icon(Icons.work_off_rounded, size: 40, color: AppColors.border),
+                SizedBox(height: 12),
+                Text('이 날은 근무 기록이 없습니다.',
+                    style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
+              ],
+            ),
+          )
+        else
+          ...dayRecords.map((r) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: _WorkRecordCard(record: r),
+          )),
+        const SizedBox(height: 12),
       ],
     );
   }
@@ -624,6 +666,7 @@ class _PayPeriodStatsCard extends StatelessWidget {
   final DateTime payPeriodStart;
   final int workDays;
   final double workHours;
+  final double overtimeHours;
   final VoidCallback onPrev;
   final VoidCallback onNext;
 
@@ -631,6 +674,7 @@ class _PayPeriodStatsCard extends StatelessWidget {
     required this.payPeriodStart,
     required this.workDays,
     required this.workHours,
+    required this.overtimeHours,
     required this.onPrev,
     required this.onNext,
   });
@@ -684,9 +728,11 @@ class _PayPeriodStatsCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 14),
             child: Row(
               children: [
-                Expanded(child: _StatColumn(label: '근무일', value: '$workDays일')),
+                Expanded(child: _StatColumn(label: '근무일', value: '$workDays일', color: AppColors.accent)),
                 Container(width: 1, height: 36, color: AppColors.border),
-                Expanded(child: _StatColumn(label: '근무시간', value: '${workHours % 1 == 0 ? workHours.toInt() : workHours.toStringAsFixed(1)}h')),
+                Expanded(child: _StatColumn(label: '근무시간', value: '${workHours % 1 == 0 ? workHours.toInt() : workHours.toStringAsFixed(1)}h', color: AppColors.accent)),
+                Container(width: 1, height: 36, color: AppColors.border),
+                Expanded(child: _StatColumn(label: '오버타임', value: '${overtimeHours % 1 == 0 ? overtimeHours.toInt() : overtimeHours.toStringAsFixed(1)}h', color: AppColors.warning)),
               ],
             ),
           ),
@@ -699,8 +745,9 @@ class _PayPeriodStatsCard extends StatelessWidget {
 class _StatColumn extends StatelessWidget {
   final String label;
   final String value;
+  final Color color;
 
-  const _StatColumn({required this.label, required this.value});
+  const _StatColumn({required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -708,7 +755,7 @@ class _StatColumn extends StatelessWidget {
       children: [
         Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.accent)),
+        Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
       ],
     );
   }
@@ -865,58 +912,6 @@ class _MonthCalendarGrid extends StatelessWidget {
               );
             }),
           ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─── Day Work Record List ────────────────────────────────────
-
-class _DayWorkRecordList extends StatelessWidget {
-  final DateTime selectedDay;
-  final List<_WorkRecord> records;
-
-  const _DayWorkRecordList({required this.selectedDay, required this.records});
-
-  static const _weekdayFull = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
-
-  @override
-  Widget build(BuildContext context) {
-    final dayLabel = '${selectedDay.month}월 ${selectedDay.day}일 ${_weekdayFull[selectedDay.weekday - 1]}';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-          child: Row(
-            children: [
-              Text(dayLabel, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text)),
-              const SizedBox(width: 8),
-              Text('${records.length}건', style: const TextStyle(fontSize: 14, color: AppColors.textMuted)),
-            ],
-          ),
-        ),
-        Expanded(
-          child: records.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.work_off_rounded, size: 40, color: AppColors.border),
-                      SizedBox(height: 12),
-                      Text('이 날은 근무 기록이 없습니다.',
-                          style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
-                    ],
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  itemCount: records.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, i) => _WorkRecordCard(record: records[i]),
-                ),
         ),
       ],
     );
