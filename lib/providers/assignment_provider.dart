@@ -4,27 +4,35 @@ import '../services/assignment_service.dart';
 
 class AssignmentState {
   final List<Assignment> assignments;
+  final List<Assignment> pastAssignments;
   final Assignment? selected;
   final bool isLoading;
+  final bool isPastLoading;
   final String? error;
 
   const AssignmentState({
     this.assignments = const [],
+    this.pastAssignments = const [],
     this.selected,
     this.isLoading = false,
+    this.isPastLoading = false,
     this.error,
   });
 
   AssignmentState copyWith({
     List<Assignment>? assignments,
+    List<Assignment>? pastAssignments,
     Assignment? selected,
     bool? isLoading,
+    bool? isPastLoading,
     String? error,
   }) {
     return AssignmentState(
       assignments: assignments ?? this.assignments,
+      pastAssignments: pastAssignments ?? this.pastAssignments,
       selected: selected ?? this.selected,
       isLoading: isLoading ?? this.isLoading,
+      isPastLoading: isPastLoading ?? this.isPastLoading,
       error: error,
     );
   }
@@ -47,6 +55,16 @@ class AssignmentNotifier extends StateNotifier<AssignmentState> {
       state = state.copyWith(assignments: assignments, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<void> loadPastAssignments() async {
+    state = state.copyWith(isPastLoading: true, error: null);
+    try {
+      final past = await _service.getPastAssignments();
+      state = state.copyWith(pastAssignments: past, isPastLoading: false);
+    } catch (e) {
+      state = state.copyWith(isPastLoading: false, error: e.toString());
     }
   }
 
@@ -84,6 +102,28 @@ class AssignmentNotifier extends StateNotifier<AssignmentState> {
       completedBy: completedBy,
     );
     await _reloadAssignment(assignmentId);
+  }
+
+  Future<void> respondToRejection(
+    String assignmentId,
+    int itemIndex, {
+    String? responseComment,
+    String? photoUrl,
+    String? completedBy,
+  }) async {
+    await _service.respondToRejection(
+      assignmentId,
+      itemIndex,
+      responseComment: responseComment,
+      photoUrl: photoUrl,
+      completedBy: completedBy,
+    );
+    await _reloadAssignment(assignmentId);
+    // Also refresh past assignments if they're loaded
+    if (state.pastAssignments.isNotEmpty) {
+      final past = await _service.getPastAssignments();
+      state = state.copyWith(pastAssignments: past);
+    }
   }
 
   Future<void> _reloadAssignment(String assignmentId) async {

@@ -15,6 +15,13 @@ class ChecklistSnapshot {
   int get completedItems => items.where((i) => i.isCompleted).length;
   double get progress => totalItems == 0 ? 0 : completedItems / totalItems;
   bool get isAllCompleted => totalItems > 0 && completedItems == totalItems;
+  int get rejectedItems => items.where((i) => i.isRejected).length;
+  bool get hasRejections => rejectedItems > 0;
+  List<ChecklistItem> get rejectedItemsList => items.where((i) => i.isRejected).toList();
+  int get resolvedItems => items.where((i) => i.isResolved).length;
+  /// Items with rejections that are NOT yet resolved
+  List<ChecklistItem> get unresolvedRejections =>
+      items.where((i) => i.isRejected && !i.isResolved).toList();
 
   factory ChecklistSnapshot.fromJson(Map<String, dynamic> json) {
     return ChecklistSnapshot(
@@ -42,6 +49,49 @@ class ChecklistSnapshot {
   }
 }
 
+/// A single event in the checklist item timeline
+class ChecklistItemEvent {
+  final String type; // 'completed', 'rejected', 'responded'
+  final String? comment;
+  final List<String> photoUrls;
+  final String? by;
+  final String? at;
+
+  const ChecklistItemEvent({
+    required this.type,
+    this.comment,
+    this.photoUrls = const [],
+    this.by,
+    this.at,
+  });
+
+  String? get atDisplay {
+    if (at == null) return null;
+    final parsed = DateTime.tryParse(at!);
+    if (parsed != null) {
+      final mm = parsed.month.toString().padLeft(2, '0');
+      final dd = parsed.day.toString().padLeft(2, '0');
+      final hh = parsed.hour.toString().padLeft(2, '0');
+      final mi = parsed.minute.toString().padLeft(2, '0');
+      return '$mm/$dd $hh:$mi';
+    }
+    return at;
+  }
+
+  factory ChecklistItemEvent.fromJson(Map<String, dynamic> json) {
+    return ChecklistItemEvent(
+      type: json['type'] ?? 'completed',
+      comment: json['comment'],
+      photoUrls: (json['photo_urls'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      by: json['by'],
+      at: json['at'],
+    );
+  }
+}
+
 class ChecklistItem {
   final int index;
   final String? templateItemId;
@@ -56,6 +106,20 @@ class ChecklistItem {
   final String? comment;
   final String? completedBy;
 
+  // Rejection/feedback fields
+  final bool isRejected;
+  final String? rejectionComment;
+  final String? rejectedBy;
+  final String? rejectedAt;
+
+  // Response to rejection fields
+  final String? responseComment;
+  final String? respondedAt;
+  final String? respondedBy;
+
+  // Full timeline history (multiple rejection/response rounds)
+  final List<ChecklistItemEvent> history;
+
   const ChecklistItem({
     required this.index,
     this.templateItemId,
@@ -69,6 +133,14 @@ class ChecklistItem {
     this.photoUrl,
     this.comment,
     this.completedBy,
+    this.isRejected = false,
+    this.rejectionComment,
+    this.rejectedBy,
+    this.rejectedAt,
+    this.responseComment,
+    this.respondedAt,
+    this.respondedBy,
+    this.history = const [],
   });
 
   bool get requiresPhoto =>
@@ -77,10 +149,59 @@ class ChecklistItem {
       verificationType == 'comment' || verificationType == 'photo_comment';
   bool get requiresVerification => verificationType != 'none';
 
+  /// Item was rejected but staff has re-completed it with a response
+  bool get isResolved => respondedAt != null;
+
+  /// Build full timeline from history + flat fields
+  List<ChecklistItemEvent> get fullHistory {
+    if (history.isNotEmpty) return history;
+    // Construct from flat fields for backward compatibility
+    final events = <ChecklistItemEvent>[];
+    if (completedAt != null) {
+      events.add(ChecklistItemEvent(
+        type: 'completed',
+        comment: comment,
+        photoUrls: photoUrl != null ? [photoUrl!] : [],
+        by: completedBy,
+        at: completedAt,
+      ));
+    }
+    if (rejectedAt != null) {
+      events.add(ChecklistItemEvent(
+        type: 'rejected',
+        comment: rejectionComment,
+        photoUrls: [],
+        by: rejectedBy,
+        at: rejectedAt,
+      ));
+    }
+    if (respondedAt != null) {
+      events.add(ChecklistItemEvent(
+        type: 'responded',
+        comment: responseComment,
+        photoUrls: photoUrl != null && isResolved ? [photoUrl!] : [],
+        by: respondedBy,
+        at: respondedAt,
+      ));
+    }
+    if (events.isEmpty && !isCompleted) {
+      events.add(const ChecklistItemEvent(type: 'pending'));
+    }
+    return events;
+  }
+
+  /// All photo URLs from all history events
+  List<String> get allPhotoUrls {
+    final urls = <String>[];
+    for (final event in fullHistory) {
+      urls.addAll(event.photoUrls);
+    }
+    return urls;
+  }
+
   /// Formatted completion time string (e.g. "02/20 14:05 PST")
   String? get completedAtDisplay {
     if (completedAt == null) return null;
-    // Parse "2026-02-20T14:05" format
     final parsed = DateTime.tryParse(completedAt!);
     if (parsed != null) {
       final mm = parsed.month.toString().padLeft(2, '0');
@@ -93,6 +214,34 @@ class ChecklistItem {
     return completedTz != null ? '$completedAt $completedTz' : completedAt;
   }
 
+  /// Formatted rejection time string
+  String? get rejectedAtDisplay {
+    if (rejectedAt == null) return null;
+    final parsed = DateTime.tryParse(rejectedAt!);
+    if (parsed != null) {
+      final mm = parsed.month.toString().padLeft(2, '0');
+      final dd = parsed.day.toString().padLeft(2, '0');
+      final hh = parsed.hour.toString().padLeft(2, '0');
+      final mi = parsed.minute.toString().padLeft(2, '0');
+      return '$mm/$dd $hh:$mi';
+    }
+    return rejectedAt;
+  }
+
+  /// Formatted response time string
+  String? get respondedAtDisplay {
+    if (respondedAt == null) return null;
+    final parsed = DateTime.tryParse(respondedAt!);
+    if (parsed != null) {
+      final mm = parsed.month.toString().padLeft(2, '0');
+      final dd = parsed.day.toString().padLeft(2, '0');
+      final hh = parsed.hour.toString().padLeft(2, '0');
+      final mi = parsed.minute.toString().padLeft(2, '0');
+      return '$mm/$dd $hh:$mi';
+    }
+    return respondedAt;
+  }
+
   ChecklistItem copyWith({
     bool? isCompleted,
     String? completedAt,
@@ -100,6 +249,14 @@ class ChecklistItem {
     String? photoUrl,
     String? comment,
     String? completedBy,
+    bool? isRejected,
+    String? rejectionComment,
+    String? rejectedBy,
+    String? rejectedAt,
+    String? responseComment,
+    String? respondedAt,
+    String? respondedBy,
+    List<ChecklistItemEvent>? history,
   }) {
     return ChecklistItem(
       index: index,
@@ -114,6 +271,14 @@ class ChecklistItem {
       photoUrl: photoUrl ?? this.photoUrl,
       comment: comment ?? this.comment,
       completedBy: completedBy ?? this.completedBy,
+      isRejected: isRejected ?? this.isRejected,
+      rejectionComment: rejectionComment ?? this.rejectionComment,
+      rejectedBy: rejectedBy ?? this.rejectedBy,
+      rejectedAt: rejectedAt ?? this.rejectedAt,
+      responseComment: responseComment ?? this.responseComment,
+      respondedAt: respondedAt ?? this.respondedAt,
+      respondedBy: respondedBy ?? this.respondedBy,
+      history: history ?? this.history,
     );
   }
 
@@ -131,6 +296,17 @@ class ChecklistItem {
       photoUrl: json['photo_url'],
       comment: json['comment'],
       completedBy: json['completed_by'],
+      isRejected: json['is_rejected'] ?? false,
+      rejectionComment: json['rejection_comment'],
+      rejectedBy: json['rejected_by'],
+      rejectedAt: json['rejected_at'],
+      responseComment: json['response_comment'],
+      respondedAt: json['responded_at'],
+      respondedBy: json['responded_by'],
+      history: (json['history'] as List<dynamic>?)
+              ?.map((e) => ChecklistItemEvent.fromJson(e))
+              .toList() ??
+          [],
     );
   }
 }
