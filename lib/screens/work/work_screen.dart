@@ -24,6 +24,9 @@ class WorkScreen extends ConsumerStatefulWidget {
 
 class _WorkScreenState extends ConsumerState<WorkScreen> {
   int _tabIndex = 0; // 0 = 오늘, 1 = 과거
+  final _scrollController = ScrollController();
+  final _checklistKey = GlobalKey();
+  final _taskKey = GlobalKey();
 
   @override
   void initState() {
@@ -32,6 +35,27 @@ class _WorkScreenState extends ConsumerState<WorkScreen> {
     Future.microtask(() {
       ref.read(assignmentProvider.notifier).loadAssignments(today);
       ref.read(taskProvider.notifier).loadTasks();
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToSection(String section) {
+    final key = section == 'task' ? _taskKey : _checklistKey;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = key.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+          alignment: 0.05,
+        );
+      }
     });
   }
 
@@ -60,6 +84,12 @@ class _WorkScreenState extends ConsumerState<WorkScreen> {
     final assignments = ref.watch(assignmentProvider);
     final tasks = ref.watch(taskProvider);
 
+    // Handle scrollTo query parameter
+    final scrollTo = GoRouterState.of(context).uri.queryParameters['scrollTo'];
+    if (scrollTo != null) {
+      _scrollToSection(scrollTo);
+    }
+
     final tags = <String>{};
     for (final a in assignments.assignments) {
       if (a.store.name.isNotEmpty) tags.add(a.store.name);
@@ -87,6 +117,7 @@ class _WorkScreenState extends ConsumerState<WorkScreen> {
 
           // ── Checklist section (grouped card) ──────────────────────────────
           Container(
+            key: _checklistKey,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.white,
@@ -147,7 +178,48 @@ class _WorkScreenState extends ConsumerState<WorkScreen> {
           const SizedBox(height: 16),
 
           // ── Task section ──────────────────────────────────────────────
-          _TodayTaskContent(tasks: tasks),
+          Container(
+            key: _taskKey,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: AppColors.warningBg,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.task_alt_rounded,
+                        size: 16,
+                        color: AppColors.warning,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Task',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.text,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _TodayTaskContent(tasks: tasks),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -382,27 +454,104 @@ class _TodayAssignmentCard extends StatelessWidget {
 
 // ─── Today task content ─────────────────────────────────────────────────────
 
-class _TodayTaskContent extends StatelessWidget {
+enum _TaskSortOption { dueDate, priority, recent, name }
+
+class _TodayTaskContent extends StatefulWidget {
   final TaskState tasks;
 
   const _TodayTaskContent({required this.tasks});
 
   @override
+  State<_TodayTaskContent> createState() => _TodayTaskContentState();
+}
+
+class _TodayTaskContentState extends State<_TodayTaskContent> {
+  String _searchQuery = '';
+  DateTime? _selectedDate;
+  _TaskSortOption _sortOption = _TaskSortOption.dueDate;
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<AdditionalTask> get _filteredAndSorted {
+    var list = widget.tasks.tasks.toList();
+
+    // Search filter
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      list = list.where((t) {
+        return t.title.toLowerCase().contains(q) ||
+            (t.store?.name.toLowerCase().contains(q) ?? false);
+      }).toList();
+    }
+
+    // Date filter
+    if (_selectedDate != null) {
+      list = list.where((t) {
+        if (t.dueDate == null) return false;
+        return t.dueDate!.year == _selectedDate!.year &&
+            t.dueDate!.month == _selectedDate!.month &&
+            t.dueDate!.day == _selectedDate!.day;
+      }).toList();
+    }
+
+    // Sort
+    switch (_sortOption) {
+      case _TaskSortOption.dueDate:
+        list.sort((a, b) {
+          if (a.dueDate == null && b.dueDate == null) return 0;
+          if (a.dueDate == null) return 1;
+          if (b.dueDate == null) return -1;
+          return a.dueDate!.compareTo(b.dueDate!);
+        });
+      case _TaskSortOption.priority:
+        const order = {'urgent': 0, 'high': 1, 'normal': 2, 'low': 3};
+        list.sort((a, b) =>
+            (order[a.priority] ?? 2).compareTo(order[b.priority] ?? 2));
+      case _TaskSortOption.recent:
+        list.sort((a, b) {
+          if (a.createdAt == null && b.createdAt == null) return 0;
+          if (a.createdAt == null) return 1;
+          if (b.createdAt == null) return -1;
+          return b.createdAt!.compareTo(a.createdAt!);
+        });
+      case _TaskSortOption.name:
+        list.sort(
+            (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    }
+
+    return list;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final totalTasks = tasks.tasks.length;
-    final doneTasks = tasks.tasks.where((t) => t.status == 'completed').length;
+    final totalTasks = widget.tasks.tasks.length;
+    final doneTasks =
+        widget.tasks.tasks.where((t) => t.status == 'completed').length;
     final remainingTasks = totalTasks - doneTasks;
     final doneRatio = totalTasks > 0 ? doneTasks / totalTasks : 0.0;
+    final filtered = _filteredAndSorted;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // ── Task progress
-        if (!tasks.isLoading && totalTasks > 0) ...[
+        if (!widget.tasks.isLoading && totalTasks > 0) ...[
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _SectionLabel(text: 'Task($remainingTasks/$totalTasks)'),
+              Text(
+                '$remainingTasks / $totalTasks',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.text,
+                ),
+              ),
               Text(
                 '$doneTasks done',
                 style: const TextStyle(
@@ -449,36 +598,170 @@ class _TodayTaskContent extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+        ],
+
+        // ── Filter toolbar
+        if (!widget.tasks.isLoading && totalTasks > 0) ...[
+          const Divider(color: AppColors.border, height: 1),
+          const SizedBox(height: 12),
+
+          // Search bar + filter icons in one row
+          Row(
+            children: [
+              // Search bar (expanded)
+              Expanded(
+                child: Container(
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.bg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onSubmitted: (_) => _applySearch(),
+                    style: const TextStyle(
+                        fontSize: 13, color: AppColors.text),
+                    decoration: InputDecoration(
+                      hintText: '업무명, 매장명 검색',
+                      hintStyle: const TextStyle(
+                          fontSize: 13, color: AppColors.textMuted),
+                      prefixIcon: const Icon(Icons.search,
+                          size: 18, color: AppColors.textMuted),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? GestureDetector(
+                              onTap: _searchQuery.isNotEmpty
+                                  ? _clearSearch
+                                  : _applySearch,
+                              child: Container(
+                                width: 32,
+                                height: 32,
+                                margin: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  color: _searchQuery.isNotEmpty
+                                      ? AppColors.dangerBg
+                                      : AppColors.accent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  _searchQuery.isNotEmpty
+                                      ? Icons.close
+                                      : Icons.arrow_forward,
+                                  size: 15,
+                                  color: _searchQuery.isNotEmpty
+                                      ? AppColors.danger
+                                      : AppColors.white,
+                                ),
+                              ),
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 9),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Date filter button
+              _FilterIconButton(
+                icon: Icons.calendar_today,
+                isActive: _selectedDate != null,
+                onTap: () => _pickDate(context),
+              ),
+              const SizedBox(width: 6),
+              // Sort button
+              _FilterIconButton(
+                icon: Icons.swap_vert,
+                isActive: _sortOption != _TaskSortOption.dueDate,
+                onTap: () => _showSortOptions(context),
+              ),
+            ],
+          ),
+
+          // Active date chip
+          if (_selectedDate != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.accentBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    '마감일',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.accent,
+                    ),
+                  ),
+                  Container(
+                    width: 1,
+                    height: 12,
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    color: AppColors.accent.withValues(alpha: 0.3),
+                  ),
+                  Text(
+                    DateFormat('yyyy.MM.dd').format(_selectedDate!),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.accent,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    onTap: () => setState(() => _selectedDate = null),
+                    child: const Icon(Icons.close,
+                        size: 14, color: AppColors.accent),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 12),
         ],
 
         // ── Task List
-        const _SectionLabel(text: 'Task List'),
-        const SizedBox(height: 10),
-        if (tasks.isLoading)
+        if (widget.tasks.isLoading)
           const Center(
             child: Padding(
               padding: EdgeInsets.all(20),
               child: CircularProgressIndicator(),
             ),
           )
-        else if (tasks.tasks.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: const Center(
+        else if (widget.tasks.tasks.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(
               child: Text(
                 '업무가 없습니다',
                 style: TextStyle(color: AppColors.textMuted),
               ),
             ),
           )
+        else if (filtered.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: Text(
+                _searchQuery.isNotEmpty
+                    ? '"$_searchQuery" 검색 결과가 없습니다'
+                    : '선택한 날짜에 업무가 없습니다',
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.textMuted),
+              ),
+            ),
+          )
         else
-          ...tasks.tasks.map(
+          ...filtered.map(
             (t) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _TaskCard(task: t),
@@ -486,6 +769,146 @@ class _TodayTaskContent extends StatelessWidget {
           ),
         const SizedBox(height: 20),
       ],
+    );
+  }
+
+  void _applySearch() {
+    setState(() => _searchQuery = _searchController.text.trim());
+    FocusScope.of(context).unfocus();
+  }
+
+  void _clearSearch() {
+    setState(() {
+      _searchController.clear();
+      _searchQuery = '';
+    });
+  }
+
+  Future<void> _pickDate(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? now,
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now.add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.accent,
+              onSurface: AppColors.text,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
+  }
+
+  void _showSortOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '정렬 기준',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.text,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              _sortTile('마감일순', _TaskSortOption.dueDate),
+              _sortTile('긴급도순', _TaskSortOption.priority),
+              _sortTile('최근순', _TaskSortOption.recent),
+              _sortTile('이름순', _TaskSortOption.name),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sortTile(String label, _TaskSortOption option) {
+    final isSelected = _sortOption == option;
+    return ListTile(
+      dense: true,
+      title: Text(
+        label,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+          color: isSelected ? AppColors.accent : AppColors.text,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check, size: 18, color: AppColors.accent)
+          : null,
+      onTap: () {
+        setState(() => _sortOption = option);
+        Navigator.pop(context);
+      },
+    );
+  }
+}
+
+// ─── Filter icon button ──────────────────────────────────────────────────────
+
+class _FilterIconButton extends StatelessWidget {
+  final IconData icon;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _FilterIconButton({
+    required this.icon,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.accentBg : AppColors.bg,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          size: 16,
+          color: isActive ? AppColors.accent : AppColors.textMuted,
+        ),
+      ),
     );
   }
 }
@@ -1687,26 +2110,6 @@ class _TaskCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ─── Section label ────────────────────────────────────────────────────────────
-
-class _SectionLabel extends StatelessWidget {
-  final String text;
-
-  const _SectionLabel({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textSecondary,
       ),
     );
   }

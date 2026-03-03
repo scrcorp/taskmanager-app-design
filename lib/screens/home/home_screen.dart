@@ -61,7 +61,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (text.isEmpty) return;
     _ideaCtrl.clear();
     FocusScope.of(context).unfocus();
-    ToastManager().success(context, 'Thanks for sharing!');
+    ToastManager().info(context, 'Coming soon!');
   }
 
   @override
@@ -188,6 +188,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         color: totalAssignments > 0 && completedAssignments == totalAssignments
                             ? AppColors.success
                             : AppColors.accent,
+                        onTap: () => context.go('/work?scrollTo=checklist'),
                       ),
                       _statDivider(),
                       _StatItem(
@@ -198,12 +199,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         color: totalTasks > 0 && completedTasks == totalTasks
                             ? AppColors.success
                             : AppColors.accent,
+                        onTap: () => context.go('/work?scrollTo=task'),
                       ),
                       _statDivider(),
                       _StatItem(
                         label: 'Due Today',
                         value: tasks.isLoading ? '-' : '$dueTodayCount',
                         color: dueTodayCount > 0 ? AppColors.danger : AppColors.success,
+                        onTap: () => context.go('/work?scrollTo=task'),
                       ),
                     ],
                   ),
@@ -371,37 +374,43 @@ class _StatItem extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final VoidCallback? onTap;
 
   const _StatItem({
     required this.label,
     required this.value,
     required this.color,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: color,
-              letterSpacing: -0.5,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: color,
+                letterSpacing: -0.5,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textMuted,
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textMuted,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
